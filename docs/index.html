@@ -2,548 +2,183 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Estacionamento SMAMUS 3D</title>
+  <title>Estacionamento 3D</title>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f0f2f5;
+    html, body {
       margin: 0;
       padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
     }
-    h2 {
-      margin: 20px 0 10px;
-      text-align: center;
-      color: #333;
-    }
-    #contador { margin-bottom: 15px; font-weight: bold; color: #555; }
-    
-    #renderCanvas {
+    canvas {
       width: 100%;
-      height: 70vh;
-      max-width: 900px;
-      border: 2px solid #333;
-      border-radius: 10px;
-      outline: none;
-      touch-action: none;
+      height: 100%;
+      display: block;
     }
-    
-    #admin-access-container {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
-    }
-    .admin-buttons-centered {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      margin-bottom: 20px;
-      width: 100%;
-      max-width: 900px;
-    }
-    .button-style {
-      padding: 8px 12px;
-      font-size: 14px;
-      cursor: pointer;
-      border: none;
-      border-radius: 5px;
-      color: white;
-      background-color: #3CB371;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-      transition: background-color 0.3s ease, transform 0.2s ease;
-    }
-    .button-style:hover {
-      background-color: #008000;
-      transform: translateY(-2px);
-    }
-    .hidden { display: none !important; }
-    .legenda {
-      margin-top: 20px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      justify-content: center;
-      text-align: center;
-    }
-    .legenda-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 14px;
-    }
-    .legenda-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 5px;
-      border: 1px solid #000;
-      background-size: cover;
-      background-position: center;
-    }
-    .livre { background-color: rgba(0, 200, 0, 0.5); }
-    .ocupada { background-color: rgba(200,0,0,0.7); }
-    .especial-livre { background-color: rgba(0, 0, 200, 0.5); }
-    .especial-ocupada { background-color: #d3d3d3; }
-    
-    #loading-screen {
+    #ui {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      color: #333;
-      font-size: 18px;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(0,0,0,0.6);
+      padding: 10px;
+      border-radius: 8px;
+      color: white;
     }
-    
-    @media (max-width: 600px) {
-      .legenda { flex-direction: column; gap: 10px; }
-      #admin-access-container { position: static; margin-top: 10px; margin-bottom: 10px; text-align: center; }
-      .admin-buttons-centered { margin-bottom: 10px; }
-      .button-style { font-size: 12px; padding: 6px 8px; }
-      #renderCanvas { height: 50vh; }
+    #ui button {
+      margin: 5px;
+      padding: 6px 12px;
+      background: #444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #ui button:hover {
+      background: #666;
+    }
+    #contador {
+      margin-top: 10px;
+      font-weight: bold;
     }
   </style>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
-  <h2>Estacionamento SMAMUS 3D</h2>
-  <div id="contador">Total: 0 | Ocupadas: 0 | Livres: 0</div>
-  <div id="admin-access-container">
-    <button id="admin-mode-btn" class="button-style">Modo Administrador</button>
+  <div id="ui">
+    <button onclick="toggleAdmin()">Modo Admin</button>
+    <button onclick="toggleMove()">Mover/Rotacionar</button>
+    <button onclick="setDelete()">Deletar Vaga</button>
+    <div id="contador">Vagas livres: 0</div>
   </div>
-  <div id="admin-buttons-wrapper" class="admin-buttons-centered hidden">
-    <button id="user-mode-btn" class="button-style">Modo Usuário</button>
-    <button id="selecionar-todas" class="admin-button button-style hidden">Selecionar Todas</button>
-    <button id="deselecionar-todas" class="admin-button button-style hidden">Limpar Todas</button>
-    <button id="criar-vaga" class="admin-button button-style hidden">Criar Vaga</button>
-    <button id="apagar-vaga" class="admin-button button-style hidden">Apagar Vaga</button>
-    <button id="mover-vaga" class="admin-button button-style hidden">Mover/Rotacionar</button>
-  </div>
-  
-  <div style="position: relative; width: 100%; max-width: 900px;">
-    <canvas id="renderCanvas"></canvas>
-    <div id="loading-screen">Carregando modelo 3D...</div>
-  </div>
-  
-  <div class="legenda">
-    <div class="legenda-item">
-      <div class="legenda-icon livre"></div>
-      <span>Vaga Livre</span>
-    </div>
-    <div class="legenda-item">
-      <div class="legenda-icon ocupada"></div>
-      <span>Vaga Ocupada</span>
-    </div>
-    <div class="legenda-item">
-      <div class="legenda-icon especial-livre"></div>
-      <span>Vaga Especial Livre</span>
-    </div>
-    <div class="legenda-item">
-      <div class="legenda-icon especial-ocupada"></div>
-      <span>Vaga Especial Ocupada</span>
-    </div>
-  </div>
-
-  <!-- Firebase Scripts -->
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
-  
-  <!-- Babylon.js Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/5.0.0/babylon.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/5.0.0/loaders/babylonjs.loaders.min.js"></script>
+  <canvas id="renderCanvas"></canvas>
 
   <script>
-    // Firebase Configuration
+    // 🔥 Firebase config
     const firebaseConfig = {
-      apiKey: "AIzaSyDvgoGXBnFZbXi28SuSnQlx8mIN6Ebsflk",
-      authDomain: "estacionamentosmamus.firebaseapp.com",
-      databaseURL: "https://estacionamentosmamus-default-rtdb.firebaseio.com",
-      projectId: "estacionamentosmamus",
-      storageBucket: "estacionamentosmamus.appspot.com",
-      messagingSenderId: "864410096092",
-      appId: "1:864410096092:web:c8f039da393d4130bb7f19",
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_DOMINIO.firebaseapp.com",
+      databaseURL: "https://SEU_DOMINIO.firebaseio.com",
+      projectId: "SEU_PROJETO",
+      storageBucket: "SEU_BUCKET.appspot.com",
+      messagingSenderId: "SEU_SENDER_ID",
+      appId: "SEU_APP_ID"
     };
     firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    const vagasRef = database.ref('vagas');
+    const vagasRef = firebase.database().ref('vagas');
 
-    // DOM Elements
-    const canvas = document.getElementById('renderCanvas');
-    const contador = document.getElementById('contador');
-    const adminAccessBtn = document.getElementById('admin-mode-btn');
-    const adminButtonsWrapper = document.getElementById('admin-buttons-wrapper');
-    const allAdminButtons = adminButtonsWrapper.querySelectorAll('button');
-    const userModeBtn = document.getElementById('user-mode-btn');
-    const loadingScreen = document.getElementById('loading-screen');
-
-    // Variables
+    // 🧠 Variáveis globais
+    let vagas = [];
     let isAdminMode = false;
     let isMoveMode = false;
     let selectedAction = null;
-    let vagas = [];
-    const adminPassword = "admin123";
 
-    // Babylon.js variables
-    let engine, scene, camera, parkingModel;
-    let vagaMeshes = new Map();
-    let selectedVaga = null;
+    // 🎮 Babylon setup
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+    const scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
 
-    // Initialize Babylon.js
-    function initBabylon() {
-      console.log("Iniciando Babylon.js...");
-      
-      try {
-        engine = new BABYLON.Engine(canvas, true);
-        console.log("Engine criado");
-        
-        scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color3(0.2, 0.2, 0.3);
-        console.log("Scene criado");
+    const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 3, 10, BABYLON.Vector3.Zero(), scene);
+    camera.attachControl(canvas, true);
+    const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // Camera
-        camera = new BABYLON.ArcRotateCamera("camera", -Math.PI/2, Math.PI/3, 50, BABYLON.Vector3.Zero(), scene);
-        camera.setTarget(BABYLON.Vector3.Zero());
-        console.log("Camera criado");
-        
-        // Try different methods to attach controls
-        try {
-          camera.attachControls(canvas);
-          console.log("Controles anexados - método 1");
-        } catch (e) {
-          try {
-            camera.attachControls(canvas, true);
-            console.log("Controles anexados - método 2");
-          } catch (e2) {
-            try {
-              camera.attachControl(canvas);
-              console.log("Controles anexados - método 3");
-            } catch (e3) {
-              console.warn("Não foi possível anexar controles:", e3);
-            }
-          }
-        }
-
-        // Lighting
-        const hemisphericLight = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        hemisphericLight.intensity = 0.7;
-        console.log("Luz hemisférica criada");
-        
-        const directionalLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -1, -1), scene);
-        directionalLight.position = new BABYLON.Vector3(20, 40, 20);
-        directionalLight.intensity = 0.8;
-        console.log("Luz direcional criada");
-
-        // Create basic scene first to ensure something renders
-        console.log("Criando cenário básico...");
-        createFallbackGround();
-
-        // Then try to load the parking lot model
-        loadParkingModel();
-
-        // Start render loop
-        engine.runRenderLoop(() => {
-          scene.render();
-        });
-        console.log("Loop de renderização iniciado");
-
-        // Handle resize
-        window.addEventListener('resize', () => {
-          engine.resize();
-        });
-
-        // Handle clicks - using older method for compatibility
-        scene.actionManager = new BABYLON.ActionManager(scene);
-        console.log("Sistema de cliques configurado");
-        
-      } catch (error) {
-        console.error("Erro ao inicializar Babylon.js:", error);
-        loadingScreen.textContent = "Erro ao inicializar 3D: " + error.message;
-      }
-    }
-
-    function loadParkingModel() {
-      // Try to load your 3D model as an enhancement over the basic scene
-      console.log("Tentando carregar modelo 3D...");
-      
-      // Use the older method for compatibility
-      BABYLON.SceneLoader.ImportMesh("", "https://linckrafael.github.io/smamus3Dv5.0/", "modelo.glb", scene, 
-        (meshes) => {
-          console.log("Modelo carregado com sucesso!", meshes);
-          if (meshes && meshes.length > 0) {
-            parkingModel = meshes[0];
-            parkingModel.scaling = new BABYLON.Vector3(1, 1, 1);
-            parkingModel.position = new BABYLON.Vector3(0, 0, 0);
-            loadingScreen.textContent = "Modelo 3D carregado!";
-          }
-          setTimeout(() => {
-            loadVagasFromFirebase();
-          }, 1000);
-        },
-        (progress) => {
-          console.log("Progresso do carregamento:", progress);
-        },
-        (error) => {
-          console.log("Modelo 3D não encontrado, usando cenário básico:", error);
-          loadingScreen.textContent = "Usando cenário básico";
-          setTimeout(() => {
-            loadVagasFromFirebase();
-          }, 1000);
-        }
-      );
-    }
-
-    function createFallbackGround() {
-      console.log("Criando cenário básico...");
-      loadingScreen.textContent = "Criando cenário básico...";
-      
-      // Create main ground
-      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 40, height: 30}, scene);
-      const groundMaterial = new BABYLON.StandardMaterial("groundMat", scene);
-      groundMaterial.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
-      ground.material = groundMaterial;
-      
-      // Create some basic parking lot elements
-      const building = BABYLON.MeshBuilder.CreateBox("building", {width: 10, height: 8, depth: 15}, scene);
-      building.position = new BABYLON.Vector3(-15, 4, 0);
-      const buildingMaterial = new BABYLON.StandardMaterial("buildingMat", scene);
-      buildingMaterial.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.7);
-      building.material = buildingMaterial;
-      
-      // Create parking lines
-      for(let i = -15; i <= 15; i += 5) {
-        const line = BABYLON.MeshBuilder.CreateBox("line", {width: 0.2, height: 0.1, depth: 25}, scene);
-        line.position = new BABYLON.Vector3(i, 0.05, 0);
-        const lineMaterial = new BABYLON.StandardMaterial("lineMat", scene);
-        lineMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
-        line.material = lineMaterial;
-      }
-      
-      setTimeout(() => {
-        loadingScreen.style.display = 'none';
-        console.log("Cenário básico criado!");
-      }, 1000);
-    }
-
-    function loadVagasFromFirebase() {
+    // 📦 Carregar modelo GLB
+    BABYLON.SceneLoader.Append("modelos/", "modelo.glb", scene, function () {
+      // Após carregar, escutar Firebase
       vagasRef.on('value', (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-          vagas = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-        } else {
-          vagas = [];
-        }
+        vagas = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
         renderVagas3D();
+        atualizarContador();
       });
-    }
+    });
 
+    // 🧱 Renderizar vagas como objetos 3D
     function renderVagas3D() {
-      // Clear existing vaga meshes
-      vagaMeshes.forEach(mesh => {
-        mesh.dispose();
-      });
-      vagaMeshes.clear();
+      // Limpar vagas anteriores
+      scene.meshes.filter(m => m.name.startsWith("V")).forEach(m => m.dispose());
 
-      // Create 3D vagas
-      vagas.forEach(vaga => {
-        createVaga3D(vaga);
-      });
+      vagas.forEach(v => {
+        const vagaMesh = BABYLON.MeshBuilder.CreatePlane(v.id, { width: 0.5, height: 0.25 }, scene);
+        vagaMesh.position = new BABYLON.Vector3(v.left / 10 - 5, 0.01, v.top / 10 - 5);
+        vagaMesh.rotation = new BABYLON.Vector3(Math.PI / 2, BABYLON.Tools.ToRadians(v.rotate), 0);
 
-      atualizarContador();
-    }
-
-    function createVaga3D(vaga) {
-      try {
-        // Create a box for the parking space
-        const vagaBox = BABYLON.MeshBuilder.CreateBox(vaga.id, {width: 2.5, height: 0.1, depth: 4}, scene);
-        
-        // Position based on the original 2D coordinates, converted to 3D space
-        const x = (vaga.left - 50) * 0.4; // Convert percentage to 3D coordinates
-        const z = (vaga.top - 50) * 0.3;
-        vagaBox.position = new BABYLON.Vector3(x, 0.05, z);
-        
-        // Rotation
-        vagaBox.rotation.y = BABYLON.Tools.ToRadians(vaga.rotate || 0);
-
-        // Material based on status
-        const material = new BABYLON.StandardMaterial(vaga.id + "_mat", scene);
-        
-        if (vaga.ocupada) {
-          if (vaga.id === 'V15' || vaga.id === 'V16') {
-            material.diffuseColor = new BABYLON.Color3(0.8, 0.8, 0.8); // Gray for police
-          } else {
-            material.diffuseColor = new BABYLON.Color3(0.8, 0, 0); // Red for occupied
-          }
+        const material = new BABYLON.StandardMaterial("mat_" + v.id, scene);
+        if (v.ocupada) {
+          material.diffuseColor = (v.id === 'V15' || v.id === 'V16') ? BABYLON.Color3.Gray() : BABYLON.Color3.Red();
         } else {
-          if (vaga.id === 'V15' || vaga.id === 'V16') {
-            material.diffuseColor = new BABYLON.Color3(0, 0, 0.8); // Blue for special
-          } else {
-            material.diffuseColor = new BABYLON.Color3(0, 0.8, 0); // Green for free
-          }
+          material.diffuseColor = (v.id === 'V15' || v.id === 'V16') ? BABYLON.Color3.Blue() : BABYLON.Color3.Green();
         }
-        
-        material.alpha = 0.7;
-        vagaBox.material = material;
+        vagaMesh.material = material;
 
-        // Add user data for identification
-        vagaBox.metadata = { vagaId: vaga.id };
-
-        // Add click action
-        vagaBox.actionManager = new BABYLON.ActionManager(scene);
-        vagaBox.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, function() {
-          handleVagaClick(vaga.id);
+        vagaMesh.actionManager = new BABYLON.ActionManager(scene);
+        vagaMesh.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, function () {
+          if (isAdminMode) {
+            if (selectedAction === 'delete') {
+              vagasRef.child(v.id).remove();
+              selectedAction = null;
+            } else {
+              vagasRef.child(v.id).update({ ocupada: !v.ocupada });
+            }
+          }
         }));
 
-        // Add text label for free spots
-        if (!vaga.ocupada) {
-          createVagaLabel(vaga, vagaBox.position);
+        if (isAdminMode && isMoveMode) {
+          let isDragging = false;
+          let startX, startY;
+          canvas.addEventListener('pointerdown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+          });
+          canvas.addEventListener('pointerup', () => {
+            isDragging = false;
+          });
+          canvas.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            if (e.shiftKey) {
+              const newRot = v.rotate + deltaX * 0.1;
+              vagasRef.child(v.id).update({ rotate: newRot });
+            } else {
+              const newLeft = Math.min(Math.max(v.left + deltaX * 0.05, 0), 100);
+              const newTop = Math.min(Math.max(v.top - deltaY * 0.05, 0), 100);
+              vagasRef.child(v.id).update({ top: newTop, left: newLeft });
+            }
+          });
         }
-
-        // Store mesh reference
-        vagaMeshes.set(vaga.id, vagaBox);
-
-        // Add glow effect for admin mode
-        if (isAdminMode) {
-          vagaBox.renderOutline = true;
-          vagaBox.outlineColor = new BABYLON.Color3(1, 1, 0);
-          vagaBox.outlineWidth = 0.02;
-        }
-        
-      } catch (error) {
-        console.error("Erro ao criar vaga 3D:", vaga.id, error);
-      }
+      });
     }
 
-    function createVagaLabel(vaga, position) {
-      // Create a simple text plane (you might want to use a more sophisticated text system)
-      const textPlane = BABYLON.MeshBuilder.CreatePlane(vaga.id + "_text", {width: 1, height: 0.5}, scene);
-      textPlane.position = new BABYLON.Vector3(position.x, position.y + 0.2, position.z);
-      textPlane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_Y;
-      
-      const textMaterial = new BABYLON.StandardMaterial(vaga.id + "_textMat", scene);
-      textMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
-      textMaterial.emissiveColor = new BABYLON.Color3(0.2, 0.2, 0.2);
-      textPlane.material = textMaterial;
-
-      // Store with the main mesh
-      if (vagaMeshes.has(vaga.id)) {
-        const mainMesh = vagaMeshes.get(vaga.id);
-        textPlane.parent = mainMesh;
-      }
-    }
-
-    function handleVagaClick(vagaId) {
-      const vaga = vagas.find(v => v.id === vagaId);
-      if (!vaga) return;
-
-      if (isAdminMode) {
-        if (selectedAction === 'delete') {
-          vagasRef.child(vagaId).remove();
-          selectedAction = null;
-        } else if (isMoveMode) {
-          // Handle move mode - you can implement drag functionality here
-          selectedVaga = selectedVaga === vagaId ? null : vagaId;
-          console.log("Vaga selecionada para mover:", selectedVaga);
-        } else {
-          vagasRef.child(vagaId).update({ ocupada: !vaga.ocupada });
-        }
-      }
-    }
-
+    // 📊 Atualizar contador
     function atualizarContador() {
-      const total = vagas.length;
-      const ocupadas = vagas.filter(v => v.ocupada).length;
-      contador.textContent = `Total: ${total} | Ocupadas: ${ocupadas} | Livres: ${total - ocupadas}`;
+      const livres = vagas.filter(v => !v.ocupada && v.id !== 'V15' && v.id !== 'V16').length;
+      document.getElementById("contador").innerText = `Vagas livres: ${livres}`;
     }
 
-    // Admin functions (keeping original logic)
-    function toggleAdminButtonsWrapper(show) {
-      if (show) adminButtonsWrapper.classList.remove('hidden');
-      else adminButtonsWrapper.classList.add('hidden');
+    // 🧭 Controles de interface
+    function toggleAdmin() {
+      isAdminMode = !isAdminMode;
+      alert("Modo Admin: " + (isAdminMode ? "Ativado" : "Desativado"));
     }
 
-    function toggleIndividualAdminButtons(show) {
-      allAdminButtons.forEach(button => {
-        if (button.id === 'user-mode-btn') {
-          button.classList.remove('hidden');
-        } else {
-          show ? button.classList.remove('hidden') : button.classList.add('hidden');
-        }
-      });
-    }
-
-    // Event Listeners
-    adminAccessBtn.addEventListener('click', () => {
-      const senha = prompt("Digite a senha do administrador:");
-      if (senha === adminPassword) {
-        isAdminMode = true;
-        alert("Modo Administrador ativado.");
-        adminAccessBtn.classList.add('hidden');
-        toggleAdminButtonsWrapper(true);
-        toggleIndividualAdminButtons(true);
-        renderVagas3D();
-      } else {
-        alert("Senha incorreta!");
-      }
-    });
-
-    userModeBtn.addEventListener('click', () => {
-      isAdminMode = false;
-      isMoveMode = false;
-      selectedAction = null;
-      selectedVaga = null;
-      adminAccessBtn.classList.remove('hidden');
-      toggleAdminButtonsWrapper(false);
-      toggleIndividualAdminButtons(false);
-      renderVagas3D();
-    });
-
-    document.getElementById('selecionar-todas').addEventListener('click', () => {
-      if (!isAdminMode) return;
-      vagas.forEach(v => vagasRef.child(v.id).update({ ocupada: true }));
-    });
-
-    document.getElementById('deselecionar-todas').addEventListener('click', () => {
-      if (!isAdminMode) return;
-      vagas.forEach(v => vagasRef.child(v.id).update({ ocupada: false }));
-    });
-
-    document.getElementById('criar-vaga').addEventListener('click', () => {
-      if (!isAdminMode) return;
-      const novaId = prompt('ID da nova vaga:');
-      if (!novaId) return;
-      vagasRef.child(novaId).set({ 
-        top: Math.random() * 80 + 10, 
-        left: Math.random() * 80 + 10, 
-        rotate: 0, 
-        ocupada: false 
-      });
-    });
-
-    document.getElementById('apagar-vaga').addEventListener('click', () => {
-      if (!isAdminMode) return;
-      selectedAction = 'delete';
-      alert('Clique na vaga que deseja apagar.');
-    });
-
-    document.getElementById('mover-vaga').addEventListener('click', () => {
-      if (!isAdminMode) return;
+    function toggleMove() {
       isMoveMode = !isMoveMode;
-      selectedVaga = null;
-      alert(isMoveMode ? 
-        'Modo mover/rotacionar ativado. Clique em uma vaga para selecioná-la.' : 
-        'Modo mover/rotacionar desativado.');
-      renderVagas3D();
-    });
+      alert("Modo Mover/Rotacionar: " + (isMoveMode ? "Ativado" : "Desativado"));
+    }
 
-    // Initialize
-    toggleAdminButtonsWrapper(false);
-    adminAccessBtn.classList.remove('hidden');
-    initBabylon();
+    function setDelete() {
+      selectedAction = 'delete';
+      alert("Clique em uma vaga para deletar.");
+    }
+
+    engine.runRenderLoop(() => scene.render());
+    window.addEventListener("resize", () => engine.resize());
   </script>
 </body>
 </html>
