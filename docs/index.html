@@ -87,7 +87,7 @@
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
     // 📦 Carregar modelo GLB
-    BABYLON.SceneLoader.Append("modelos/", "modelo.glb", scene, function () {
+   BABYLON.SceneLoader.Append("https://linckrafael.github.io/SMAMUS3Dv6.0/modelo.glb", "", scene, function () {
       // Após carregar, escutar Firebase
       vagasRef.on('value', (snapshot) => {
         const data = snapshot.val();
